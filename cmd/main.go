@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"net/http"
 )
@@ -12,7 +13,11 @@ func main() {
 
 	var mutex sync.Mutex
 
+	limiter := time.Tick(1 * time.Second)
+
 	m.HandleFunc("/data", func(writer http.ResponseWriter, request *http.Request) {
+
+		<-limiter
 
 		if request.Method != http.MethodGet {
 			http.Error(writer, "Метод не поддерживается", http.StatusMethodNotAllowed)
@@ -27,7 +32,7 @@ func main() {
 
 		mapData = map[string]string{
 			"google":     "google.com",
-			"yahoo!":     "search.Yahoo.com",
+			"yahoo!":     "search.yahoo.com",
 			"yandex":     "yandex.com",
 			"duckduckgo": "duckduckgo.com",
 			"baidu":      "baidu.com",
