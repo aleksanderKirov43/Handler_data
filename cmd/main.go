@@ -2,16 +2,18 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"sync"
 	"time"
-
-	"net/http"
 )
+
+// Вынести мапу на уровень репозитория. Раз в 5 сек нужно синковать кеш и базу данных, добавить TTL, использовать внутренний кеш,
+//все функции должны быть доступны на уровне меён пакета. handler/service/repository
 
 func main() {
 	m := http.NewServeMux()
 
-	var mutex sync.Mutex
+	var mutex sync.RWMutex
 
 	limiter := time.Tick(1 * time.Second)
 
@@ -19,16 +21,12 @@ func main() {
 
 		<-limiter
 
-		if request.Method != http.MethodGet {
-			http.Error(writer, "Метод не поддерживается", http.StatusMethodNotAllowed)
-			return
-		}
-
 		mutex.Lock()
 		defer mutex.Unlock()
 
 		writer.Header().Set("Content-Type", "application/json")
-		var mapData map[string]string
+
+		mapData := make(map[string]string)
 
 		mapData = map[string]string{
 			"google":     "google.com",
