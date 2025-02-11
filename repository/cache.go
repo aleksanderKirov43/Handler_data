@@ -5,29 +5,59 @@ import (
 	"time"
 )
 
-type Cache struct {
-	mapData           map[string]string
-	mutex             sync.Mutex
-	defaultExpiration time.Duration // Продолжительность жизнит кеша
-	cleanupInterval   time.Duration // Интервал, через который кеш будет очищен
+// Значения, для хранения в кеше
+type CacheEntry struct {
+	value      interface{}
+	expiration int64
 }
 
-func NewCache(expiriation, interval time.Duration) *Cache {
-	return &Cache{
-		data:              make(map[string]string),
-		defaultExpiration: expiriation,
-		cleanupInterval:   interval,
+// Кэш
+type SafeCache struct {
+	syncMap sync.Map
+}
+
+func NewSafeCache() *SafeCache {
+	return &SafeCache{}
+}
+
+// Сохраняем значения с заданными TTL
+// Задаём "врмя жизни" в секундах.
+func (sc *SafeCache) Set(key string, value interface{}, ttl time.Duration) {
+	expiration := time.Now().Add(ttl).UnixNano()
+	sc.syncMap.Store(key, CacheEntry{value: value, expiration: expiration})
+}
+
+// Извлекаем значение из кэша, если оно не найдено
+// или истёк срок действия.
+func (sc *SafeCache) Get(key string) (interface{}, bool) {
+	entry, found := sc.syncMap.Load(key)
+	if !found {
+		return nil, false
 	}
+
+	cacheEntry := entry.(CacheEntry)
+	if time.Now().UnixNano() > cacheEntry.expiration {
+		sc.syncMap.Delete(key)
+		return nil, false
+	}
+	return cacheEntry.value, true
 }
 
-func (c *Cache) Get(key string) (interface{}, bool) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	val, found := c.data[key]
-	return val, found
+// Удаление значения из кэша
+func (sc *SafeCache) Delete(key string) {
+	sc.syncMap.Delete(key)
 }
 
-func Set(key string, ) {
-
+// Переодическая очистка кэша
+func (sc *SafeCache) CleanUp() {
+	for {
+		time.Sleep(1 * time.Minute)
+		sc.syncMap.Range(func(key, entry interface{}) bool {
+			cacheEntry := entry.(CacheEntry)
+			if time.Now().UnixNano() > cacheEntry.expiration {
+				sc.syncMap.Delete(key)
+			}
+			return true
+		})
+	}
 }

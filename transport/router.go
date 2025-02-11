@@ -1,5 +1,13 @@
 package transport
 
-func RouterHandler() {
+import (
+	"handler-data/handler"
+	"net/http"
+)
 
+func NewRouter() *http.ServeMux {
+
+	router := http.NewServeMux()
+	router.HandleFunc("/data", handler.GetDataHandler)
+	return router
 }
