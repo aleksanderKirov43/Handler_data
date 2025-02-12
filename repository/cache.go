@@ -1,13 +1,16 @@
 package repository
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"sync"
 	"time"
 )
 
 // Значения, для хранения в кеше
 type CacheEntry struct {
-	value      interface{}
+	value      map[string]string
 	expiration int64
 }
 
@@ -16,20 +19,55 @@ type SafeCache struct {
 	syncMap sync.Map
 }
 
+var cache = NewSafeCache()
+
+func GetDataHandler(w http.ResponseWriter, r *http.Request) {
+
+	value, found := cache.Get("data")
+	if !found {
+		data := map[string]string{
+			"google":     "google.com",
+			"yahoo!":     "search.yahoo.com",
+			"yandex":     "yandex.com",
+			"duckduckgo": "duckduckgo.com",
+			"baidu":      "baidu.com",
+			"bing":       "bing.com",
+			"ask":        "ask.com",
+			"archive":    "archive.org",
+			"ecosia":     "ecosia.org",
+		}
+		cache.Set("data", data, 1*time.Minute)
+		value = data
+
+		fmt.Println("Кеш валидирован")
+	} else {
+		fmt.Println("Кеш не валидирован")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	jsonResponse, err := json.Marshal(value)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(jsonResponse)
+}
+
 func NewSafeCache() *SafeCache {
 	return &SafeCache{}
 }
 
 // Сохраняем значения с заданными TTL
 // Задаём "врмя жизни" в секундах.
-func (sc *SafeCache) Set(key string, value interface{}, ttl time.Duration) {
+func (sc *SafeCache) Set(key string, data map[string]string, ttl time.Duration) {
 	expiration := time.Now().Add(ttl).UnixNano()
-	sc.syncMap.Store(key, CacheEntry{value: value, expiration: expiration})
+	sc.syncMap.Store(key, CacheEntry{value: data, expiration: expiration})
+
 }
 
 // Извлекаем значение из кэша, если оно не найдено
 // или истёк срок действия.
-func (sc *SafeCache) Get(key string) (interface{}, bool) {
+func (sc *SafeCache) Get(key string) (map[string]string, bool) {
 	entry, found := sc.syncMap.Load(key)
 	if !found {
 		return nil, false
